@@ -1,14 +1,22 @@
 package my.app.chordmate;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.app.TimePickerDialog;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.TimePicker;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 import androidx.appcompat.widget.Toolbar;
 
 import com.example.chordmate.R;
@@ -23,6 +31,10 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Locale;
+
 public class ProfileActivity extends AppCompatActivity {
 
     private TextView usernameText;
@@ -31,10 +43,26 @@ public class ProfileActivity extends AppCompatActivity {
     private TextInputEditText passwordInput;
     private Button saveButton;
     private Button logoutButton;
+    private SwitchCompat reminderSwitch;
+    private TextView reminderTimeText;
+    private View reminderTimeContainer;
 
     private FirebaseAuth mAuth;
     private FirebaseUser currentUser;
     private DatabaseReference userReference;
+
+    // Constants for shared preferences
+    private static final String PREFS_NAME = "ChordMatePrefs";
+    private static final String KEY_REMINDER_ENABLED = "reminder_enabled";
+    private static final String KEY_REMINDER_HOUR = "reminder_hour";
+    private static final String KEY_REMINDER_MINUTE = "reminder_minute";
+
+    // Default reminder time (8:00 PM)
+    private static final int DEFAULT_HOUR = 20;
+    private static final int DEFAULT_MINUTE = 0;
+
+    // Shared Preferences
+    private SharedPreferences sharedPreferences;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +83,9 @@ public class ProfileActivity extends AppCompatActivity {
         // Initialize Firebase Database reference
         userReference = FirebaseDatabase.getInstance().getReference("users").child(currentUser.getUid());
 
+        // Initialize SharedPreferences
+        sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+
         // Set up toolbar with back button
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -68,6 +99,11 @@ public class ProfileActivity extends AppCompatActivity {
         passwordInput = findViewById(R.id.password_input);
         saveButton = findViewById(R.id.save_button);
         logoutButton = findViewById(R.id.logout_button);
+
+        // Initialize reminder components
+        reminderSwitch = findViewById(R.id.remind_switch);
+        reminderTimeText = findViewById(R.id.reminder_time_text);
+        reminderTimeContainer = findViewById(R.id.reminder_time_container);
 
         // Set email from FirebaseUser as a fallback
         if (currentUser.getEmail() != null) {
@@ -83,6 +119,9 @@ public class ProfileActivity extends AppCompatActivity {
         // Load user data from Firebase
         loadUserData();
 
+        // Load and display reminder settings
+        loadReminderSettings();
+
         // Set up save button listener
         saveButton.setOnClickListener(v -> {
             updateUserProfile();
@@ -92,6 +131,124 @@ public class ProfileActivity extends AppCompatActivity {
         logoutButton.setOnClickListener(v -> {
             logoutUser();
         });
+
+        // Set up reminder switch listener
+        reminderSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            updateReminderVisibility(isChecked);
+            saveReminderSettings();
+
+            if (isChecked) {
+                scheduleReminder();
+                Toast.makeText(ProfileActivity.this,
+                        "Daily practice reminder enabled",
+                        Toast.LENGTH_SHORT).show();
+            } else {
+                cancelReminder();
+                Toast.makeText(ProfileActivity.this,
+                        "Daily practice reminder disabled",
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // Set up reminder time selection
+        reminderTimeContainer.setOnClickListener(v -> {
+            showTimePickerDialog();
+        });
+    }
+
+    private void loadReminderSettings() {
+        boolean isReminderEnabled = sharedPreferences.getBoolean(KEY_REMINDER_ENABLED, true);
+        int hour = sharedPreferences.getInt(KEY_REMINDER_HOUR, DEFAULT_HOUR);
+        int minute = sharedPreferences.getInt(KEY_REMINDER_MINUTE, DEFAULT_MINUTE);
+
+        // Update UI
+        reminderSwitch.setChecked(isReminderEnabled);
+        updateReminderVisibility(isReminderEnabled);
+        updateReminderTimeText(hour, minute);
+    }
+
+    private void updateReminderVisibility(boolean isVisible) {
+        reminderTimeContainer.setVisibility(isVisible ? View.VISIBLE : View.GONE);
+    }
+
+    private void updateReminderTimeText(int hour, int minute) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.HOUR_OF_DAY, hour);
+        calendar.set(Calendar.MINUTE, minute);
+
+        SimpleDateFormat timeFormat = new SimpleDateFormat("h:mm a", Locale.getDefault());
+        String formattedTime = timeFormat.format(calendar.getTime());
+
+        reminderTimeText.setText(formattedTime);
+    }
+
+    private void saveReminderSettings() {
+        Calendar calendar = Calendar.getInstance();
+        String timeString = reminderTimeText.getText().toString();
+
+        try {
+            SimpleDateFormat timeFormat = new SimpleDateFormat("h:mm a", Locale.getDefault());
+            calendar.setTime(timeFormat.parse(timeString));
+        } catch (Exception e) {
+            calendar.set(Calendar.HOUR_OF_DAY, DEFAULT_HOUR);
+            calendar.set(Calendar.MINUTE, DEFAULT_MINUTE);
+        }
+
+        int hour = calendar.get(Calendar.HOUR_OF_DAY);
+        int minute = calendar.get(Calendar.MINUTE);
+
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putBoolean(KEY_REMINDER_ENABLED, reminderSwitch.isChecked());
+        editor.putInt(KEY_REMINDER_HOUR, hour);
+        editor.putInt(KEY_REMINDER_MINUTE, minute);
+        editor.apply();
+    }
+
+    private void showTimePickerDialog() {
+        // Get current time from preferences or use default
+        int hour = sharedPreferences.getInt(KEY_REMINDER_HOUR, DEFAULT_HOUR);
+        int minute = sharedPreferences.getInt(KEY_REMINDER_MINUTE, DEFAULT_MINUTE);
+
+        TimePickerDialog timePickerDialog = new TimePickerDialog(
+                this,
+                (view, hourOfDay, selectedMinute) -> {
+                    // Save selected time
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putInt(KEY_REMINDER_HOUR, hourOfDay);
+                    editor.putInt(KEY_REMINDER_MINUTE, selectedMinute);
+                    editor.apply();
+
+                    // Update UI
+                    updateReminderTimeText(hourOfDay, selectedMinute);
+
+                    // Reschedule reminder with new time
+                    if (reminderSwitch.isChecked()) {
+                        scheduleReminder();
+                        Toast.makeText(ProfileActivity.this,
+                                "Reminder time updated",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                },
+                hour,
+                minute,
+                false
+        );
+
+        timePickerDialog.show();
+    }
+
+    private void scheduleReminder() {
+        // Get the alarm time from preferences
+        int hour = sharedPreferences.getInt(KEY_REMINDER_HOUR, DEFAULT_HOUR);
+        int minute = sharedPreferences.getInt(KEY_REMINDER_MINUTE, DEFAULT_MINUTE);
+
+        // Use the ReminderManager utility class to schedule the reminder
+        ReminderManager.scheduleReminder(this, hour, minute);
+    }
+
+    private void cancelReminder() {
+        // Use the ReminderManager utility class to cancel the reminder
+        ReminderManager.cancelReminder(this);
     }
 
     private void loadUserData() {
@@ -217,5 +374,12 @@ public class ProfileActivity extends AppCompatActivity {
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Save reminder settings when the activity is paused
+        saveReminderSettings();
     }
 }

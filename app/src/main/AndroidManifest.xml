@@ -2,6 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Required permissions -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -13,8 +20,9 @@
         android:theme="@style/Theme.ChordMate"
         tools:targetApi="31">
 
+        <!-- Login Activity as launcher -->
         <activity
-            android:name="my.app.chordmate.LoginActivity"
+            android:name=".LoginActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -22,40 +30,45 @@
             </intent-filter>
         </activity>
 
+        <!-- Other activities -->
         <activity
-            android:name="my.app.chordmate.SignupActivity"
-            android:exported="true">
-        </activity>
+            android:name=".SignupActivity"
+            android:exported="true" />
 
         <activity
-            android:name="my.app.chordmate.MainMenuActivity"
+            android:name=".MainMenuActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".MainActivity" />
+
+        <activity
+            android:name=".ChordsActivity" />
+
+        <activity
+            android:name=".ProfileActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".FullscreenChordActivity"
+            android:exported="false" /> <!-- Changed to false to avoid multiple LAUNCHER activities -->
+
+        <activity
+            android:name=".VerificationActivity"
+            android:exported="false" />
+
+        <!-- Receivers for alarms and boot -->
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".BootReceiver"
             android:exported="false">
-        </activity>
-
-        <activity android:name="my.app.chordmate.MainActivity" />
-        <activity android:name="my.app.chordmate.ChordsActivity" />
-
-        <activity
-            android:name="my.app.chordmate.ProfileActivity"
-            android:exported="false" />
-
-
-        <activity android:name="my.app.chordmate.FullscreenChordActivity"
-            android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
-        </activity>
-
-        <activity
-            android:name="my.app.chordmate.VerificationActivity"
-            android:exported="false" />
-
+        </receiver>
 
     </application>
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
 </manifest>
